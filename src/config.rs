@@ -11,14 +11,16 @@ pub struct Cfg {
 }
 impl Cfg {
     pub fn load(&mut self) {
+        //文件是否存在
         let flag = match fs::metadata(&self.path) {
             Ok(_) => true,
             Err(_) => false,
         };
-        //文件不存在
+        //不存在则创建
         if !flag {
             let file = File::create(&self.path).unwrap();
         }
+        //获取数据
         self.get_data();
     }
 
@@ -28,6 +30,7 @@ impl Cfg {
             data: vec![],
         }
     }
+    //获取文本
     fn read_text(&mut self) -> String {
         let file_path = &self.path;
         match fs::read_to_string(file_path) {
@@ -35,7 +38,7 @@ impl Cfg {
             Err(e) => panic!("Error reading file: {}", e),
         }
     }
-
+    //解析文本
     fn get_data(&mut self) {
         let mut vec: Vec<String> = vec![];
         for i in self.read_text().lines() {
@@ -69,24 +72,28 @@ impl Parse for Cfg{
         self.get_data();
         for i in &self.data{
             let mut line_data = i.split("=");
+            //存在的话就修改
             if code == line_data.nth(0).unwrap().trim(){
                 flag = true;
                 text += &code;
                 text += &String::from("=");
                 text += &data;
                 text += &String::from("\n");
+            //其他的直接加入
             }else{
                 text += &i.to_owned();
                 text += &String::from("\n");
             }
             
         }
+        //如果不存在的话就加入
         if !flag {
             text += &code;
             text += &String::from("=");
             text += &data;
             text += &String::from("\n");
         }
+        //写入文件
         let mut file = OpenOptions::new()
             .write(true)
             .open(&self.path).unwrap();
