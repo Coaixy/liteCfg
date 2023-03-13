@@ -1,12 +1,14 @@
-use config::Parse;
+use config::{ParseConfig};
 
 mod config;
 fn main(){
-   let mut cfg = config::Cfg::new("cfg".to_string());
+   let mut cfg = config::Config::new("cfg");
    //初始化
    cfg.load();
    //设置数据
-   cfg.set_value("code".to_string(), "data".to_string());
+   cfg.set_value("code","test");
    //修改数据
-   cfg.set_value("code".to_string(),"data".to_string());
+   cfg.set_value("code","data");
+   //测试输出
+   println!("{}",cfg.get_value("code").unwrap())
 }

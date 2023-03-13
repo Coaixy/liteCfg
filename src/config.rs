@@ -1,102 +1,76 @@
-#![allow(unused_variables)]
-use std::fs::File;
-use std::fs::OpenOptions;
+use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::fs;
-use std::string;
-use std::vec;
-pub struct Cfg {
-    pub data: Vec<String>,
-    pub path: String,
+
+pub struct Config {
+    path: String,   // 配置文件的路径
+    data: Vec<String>,   // 配置文件中的数据
 }
-impl Cfg {
-    pub fn load(&mut self) {
-        //文件是否存在
-        let flag = match fs::metadata(&self.path) {
-            Ok(_) => true,
-            Err(_) => false,
-        };
-        //不存在则创建
-        if !flag {
-            let file = File::create(&self.path).unwrap();
+
+impl Config {
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+            data: Vec::new(),   // 初始化为空向量
         }
-        //获取数据
+    }
+
+    pub fn load(&mut self) {
+        if let Err(_) = fs::metadata(&self.path) {
+            // 如果文件不存在，则创建一个新文件
+            File::create(&self.path).expect("Failed to create file");
+        }
+        // 读取并解析配置文件
         self.get_data();
     }
 
-    pub fn new(file_path: String) -> Self {
-        Self {
-            path: file_path,
-            data: vec![],
-        }
-    }
-    //获取文本
-    fn read_text(&mut self) -> String {
-        let file_path = &self.path;
-        match fs::read_to_string(file_path) {
-            Ok(contents) => return contents,
-            Err(e) => panic!("Error reading file: {}", e),
-        }
-    }
-    //解析文本
     fn get_data(&mut self) {
-        let mut vec: Vec<String> = vec![];
-        for i in self.read_text().lines() {
-            let str = String::from(i);
-            if str.contains("#") == false {
-                vec.push(str);
-            }
+        let mut contents = String::new();
+        if let Ok(data) = fs::read_to_string(&self.path) {
+            contents = data;
         }
-        self.data = vec;
+        // 过滤掉注释行和空行，并将其余行存入向量中
+        self.data = contents
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .map(String::from)
+            .collect();
     }
 }
-pub trait Parse{
-    fn get_value(&mut self,code:String) -> String;
-    fn set_value(&mut self,code:String,data:String);
+
+pub trait ParseConfig {
+    fn get_value(&self, key: &str) -> Option<String>;
+    fn set_value(&mut self, key: &str, value: &str);
 }
-impl Parse for Cfg{
-    fn get_value(&mut self,code:String) -> String{
-        self.get_data();
-        for i in &self.data {
-            let mut line_data = i.split("=");
-            if code == line_data.nth(0).unwrap().trim(){
-                return line_data.nth(0).unwrap().trim().to_string();
+
+impl ParseConfig for Config {
+    fn get_value(&self, key: &str) -> Option<String> {
+        // 查找与指定键匹配的行，并返回其对应的值
+        self.data.iter().find_map(|line| {
+            let mut parts = line.split('=');
+            let current_key = parts.next()?.trim();
+            if current_key == key {
+                Some(parts.next()?.trim().to_owned())
+            } else {
+                None
             }
-            // println!("{}.{}",line_data.nth(0).unwrap().trim(),line_data.nth(0).unwrap().trim())
-        }
-        "".to_string()
+        })
     }
-    fn set_value(&mut self,code:String,data:String){
-        let mut text = String::from("");
-        let mut flag = false;
-        self.get_data();
-        for i in &self.data{
-            let mut line_data = i.split("=");
-            //存在的话就修改
-            if code == line_data.nth(0).unwrap().trim(){
-                flag = true;
-                text += &code;
-                text += &String::from("=");
-                text += &data;
-                text += &String::from("\n");
-            //其他的直接加入
-            }else{
-                text += &i.to_owned();
-                text += &String::from("\n");
-            }
-            
+
+    fn set_value(&mut self, key: &str, value: &str) {
+        let new_line = format!("{}={}", key, value);
+
+        if let Some(position) = self.data.iter().position(|line| line.starts_with(&key)) {
+            // 如果存在与指定键匹配的行，则替换该行
+            self.data[position] = new_line;
+        } else {
+            // 否则，在末尾添加新行
+            self.data.push(new_line);
         }
-        //如果不存在的话就加入
-        if !flag {
-            text += &code;
-            text += &String::from("=");
-            text += &data;
-            text += &String::from("\n");
+
+        // 将更改后的配置写回到文件中
+        let new_contents = self.data.join("\n");
+        if let Ok(mut file) = OpenOptions::new().write(true).open(&self.path) {
+            file.write_all(new_contents.as_bytes()).expect("Unable to write to file");
         }
-        //写入文件
-        let mut file = OpenOptions::new()
-            .write(true)
-            .open(&self.path).unwrap();
-        file.write_all(text.as_bytes());
     }
 }
